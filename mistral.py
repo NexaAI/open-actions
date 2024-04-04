@@ -35,15 +35,14 @@ def check_usage(usage, limit):
         logging.info("API usage is above 30%.")
     return True
 
-
 INSTRUCTION = """
-
+    Who is the most renowned French painter?
 """
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
 def query_mistral_api(prompt):
-    # Load the current monthly usage 
+    # Load the current monthly usage
     global current_monthly_usage
 
     # Check if the usage is above 95%
@@ -63,9 +62,9 @@ def query_mistral_api(prompt):
         if response.status_code == 200:
             response_data = response.json()
             # Update the current monthly usage
-            usage_data = response_data.get('usage', {})
-            prompt_tokens = usage_data.get('prompt_tokens', 0)
-            completion_tokens = usage_data.get('completion_tokens', 0)
+            usage_data = response_data.get("usage", {})
+            prompt_tokens = usage_data.get("prompt_tokens", 0)
+            completion_tokens = usage_data.get("completion_tokens", 0)
 
             # Update the current monthly usage
             current_monthly_usage += prompt_tokens + completion_tokens

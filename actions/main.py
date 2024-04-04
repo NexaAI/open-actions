@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from actions.content_creator import college_board_api
 from content_creator import ai_tool_search_api
 from researcher import arxiv_api
 from fastapi.openapi.utils import get_openapi
@@ -23,11 +24,13 @@ def custom_openapi():
 app.openapi = custom_openapi
 app.include_router(ai_tool_search_api.router)
 app.include_router(arxiv_api.router)
+app.include_router(college_board_api.router)
 hostname = socket.gethostname()
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     return f"API is hosted on {hostname}"
+
 
 
 if __name__ == "__main__":
