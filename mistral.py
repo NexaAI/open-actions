@@ -50,8 +50,10 @@ names_to_functions = {
 }
 
 INSTRUCTION = """
-Retrive all information about the University of California, Berkeley from the College Scorecard API.
+Retrive all information about the University of California, Berkeley and give a evaluation.
 """
+
+
 def prompt_function_call(function_name, parameters):
     if function_name in names_to_functions:
         return names_to_functions[function_name](**parameters)
@@ -81,14 +83,14 @@ def query_mistral_api(prompt):
                 "message": prompt,
             }
         ],
+        "tools": mistral_functions_list.TOOL_LIST,
+        "tool_choice": "auto",
     }
     try:
         response = requests.post(
             "https://api.mistral.ai/v1/chat/completions",
             headers=headers,
             json=body,
-            tools=mistral_functions_list.tools,
-            tool_choice=names_to_functions,
         )
         if response.status_code == 200:
             response_data = response.json()
@@ -106,3 +108,18 @@ def query_mistral_api(prompt):
     except Exception as e:
         logging.error(f"Error querying Mistral API: {e}")
         return None
+
+
+# Save the answer as JSON file
+def save_answer(answer, filename):
+    with open(filename, "w") as f:
+        json.dump(answer, f, indent=4)
+
+
+if __name__:
+    result = query_mistral_api(prompt=INSTRUCTION)
+    if result:
+        print(json.dumps(result, indent=4))
+        save_answer(result, f"{today_date}_query_result.json")
+    else:
+        print("Failed to get data from Mistral API.")
