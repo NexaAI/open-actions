@@ -7,6 +7,13 @@ from dotenv import load_dotenv
 import time
 import requests
 from tenacity import retry, stop_after_attempt, wait_fixed
+from mistralai.client import MistralClient
+from mistralai.models.chat_completion import ChatMessage
+import functools
+import mistral_functions_list
+import mistral_function
+import json
+
 
 os.environ["TZ"] = "America/Los_Angeles"
 time.tzset()
@@ -35,9 +42,21 @@ def check_usage(usage, limit):
         logging.info("API usage is above 30%.")
     return True
 
+
+names_to_functions = {
+    "retrieve_answer_from_college_board": functools.partial(
+        mistral_function.retrieve_answer_from_college_board,
+    )
+}
+
 INSTRUCTION = """
-    Who is the most renowned French painter?
+Retrive all information about the University of California, Berkeley from the College Scorecard API.
 """
+def prompt_function_call(function_name, parameters):
+    if function_name in names_to_functions:
+        return names_to_functions[function_name](**parameters)
+    else:
+        return json.dumps({"status": "Function not found"})
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
@@ -54,10 +73,22 @@ def query_mistral_api(prompt):
         "Content-Type": "application/json",
         "Authorization": "Bearer " + MISTRAL_API_KEY,
     }
-    body = {"model": MODEL_NAME, "prompt": INSTRUCTION + prompt}
+    body = {
+        "model": MODEL_NAME,
+        "messages": [
+            {
+                "role": "user",
+                "message": prompt,
+            }
+        ],
+    }
     try:
         response = requests.post(
-            "https://api.mistral.ai/v1/chat/completions", headers=headers, json=body
+            "https://api.mistral.ai/v1/chat/completions",
+            headers=headers,
+            json=body,
+            tools=mistral_functions_list.tools,
+            tool_choice=names_to_functions,
         )
         if response.status_code == 200:
             response_data = response.json()

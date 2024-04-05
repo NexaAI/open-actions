@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from actions.content_creator import college_board_api
+from content_creator import college_board_api
 from content_creator import ai_tool_search_api
 from researcher import arxiv_api
 from fastapi.openapi.utils import get_openapi
@@ -34,4 +34,4 @@ async def read_root():
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
