@@ -27,7 +27,7 @@ async def new_york_times_top_stories(
     section: str = Query(..., title="Section", description="The section the story appears in. The following values are allowed:arts, automobiles, books/review, business, fashion, food, health, home, insider, magazine, movies, nyregion, obituaries, opinion, politics, realestate, science, sports, sundayreview, technology, theater, t-magazine, travel, upshot, us, world"),
 ):
     """
-    Get the top stories from The New York Times.
+    Get the top stories from The New York Times for a given section.
     
     Args:
     - `section`: The section the story appears in. The following values are allowed: arts, automobiles, books/review, business, fashion, food, health, home, insider, magazine, movies, nyregion, obituaries, opinion, politics, realestate, science, sports, sundayreview, technology, theater, t-magazine, travel, upshot, us, world.

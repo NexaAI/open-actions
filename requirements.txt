@@ -5,3 +5,4 @@ fastapi
 uvicorn
 python-socketio
 httpx
+cohere
