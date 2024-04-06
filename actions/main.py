@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from content_creator import ai_tool_search_api
+from content_creator import ai_tool_search_api, new_york_times_top_stories_api
 from researcher import arxiv_api
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse
@@ -23,6 +23,8 @@ def custom_openapi():
 app.openapi = custom_openapi
 app.include_router(ai_tool_search_api.router)
 app.include_router(arxiv_api.router)
+app.include_router(new_york_times_top_stories_api.router)
+
 hostname = socket.gethostname()
 
 @app.get("/", response_class=HTMLResponse)
@@ -31,4 +33,4 @@ async def read_root():
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8081, reload=True)
