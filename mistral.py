@@ -11,7 +11,9 @@ from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
 import functools
 import mistral_functions_list
-import mistral_function
+import asyncio
+from mistral_functions_list import TOOL_LIST, FUNCTION_LIST
+
 import json
 
 
@@ -23,10 +25,11 @@ load_dotenv()
 
 # Mistral API key and configuration
 MISTRAL_API_KEY = os.environ["MISTRAL_API_KEY"]
-MODEL_NAME = "open-mistral-7b"
+MODEL_NAME = "mistral-small-latest"
 monthly_token_limit = 10000000000
 
 current_monthly_usage = 0
+client = MistralClient(api_key=MISTRAL_API_KEY)
 
 
 def check_usage(usage, limit):
@@ -36,33 +39,17 @@ def check_usage(usage, limit):
         return False
     elif percentage > 80:
         logging.info("API usage is above 80%.")
-    elif percentage > 50:
-        logging.info("API usage is above 50%.")
-    elif percentage > 30:
-        logging.info("API usage is above 30%.")
     return True
 
 
-names_to_functions = {
-    "retrieve_answer_from_college_board": functools.partial(
-        mistral_function.retrieve_answer_from_college_board,
-    )
-}
+INSTRUCTION_1 = "Retrive all information about High institutions."
 
-INSTRUCTION = """
-Retrive all information about the University of California, Berkeley and give a evaluation.
-"""
-
-
-def prompt_function_call(function_name, parameters):
-    if function_name in names_to_functions:
-        return names_to_functions[function_name](**parameters)
-    else:
-        return json.dumps({"status": "Function not found"})
+INSTRUCTION_2 = "University of California-Berkeley"
+INSTRUCTION_3 = "Retrive all the institutions in CA."
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
-def query_mistral_api(prompt):
+async def query_mistral_api():
     # Load the current monthly usage
     global current_monthly_usage
 
@@ -70,56 +57,83 @@ def query_mistral_api(prompt):
     if not check_usage(current_monthly_usage, monthly_token_limit):
         return None
 
-    headers = {
-        "accept": "application/json",
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + MISTRAL_API_KEY,
-    }
-    body = {
-        "model": MODEL_NAME,
-        "messages": [
-            {
-                "role": "user",
-                "message": prompt,
-            }
-        ],
-        "tools": mistral_functions_list.TOOL_LIST,
-        "tool_choice": "auto",
-    }
-    try:
-        response = requests.post(
-            "https://api.mistral.ai/v1/chat/completions",
-            headers=headers,
-            json=body,
+    messages = [
+        ChatMessage(
+            role="user",
+            content=INSTRUCTION_1,
         )
-        if response.status_code == 200:
-            response_data = response.json()
-            # Update the current monthly usage
-            usage_data = response_data.get("usage", {})
-            prompt_tokens = usage_data.get("prompt_tokens", 0)
-            completion_tokens = usage_data.get("completion_tokens", 0)
+    ]
 
-            # Update the current monthly usage
-            current_monthly_usage += prompt_tokens + completion_tokens
-            return response_data
-        else:
-            logging.error(f"Error querying Mistral API: HTTP {response.status_code}")
+    try:
+        response = client.chat(
+            model=MODEL_NAME,
+            messages=messages,
+            tools=TOOL_LIST,
+            tool_choice="auto",
+        )
+        if not response or not response.choices:
+            logging.error("No response or no choices in the response from Mistral API")
             return None
+
+        messages.append(
+            ChatMessage(role="assistant", content=response.choices[0].message.content)
+        )
+        messages.append(
+            ChatMessage(
+                role="user",
+                content=INSTRUCTION_2,
+                tools=TOOL_LIST,
+                tool_choice="auto",
+            )
+        )
+        response = client.chat(
+            model=MODEL_NAME, messages=messages, tools=TOOL_LIST, tool_choice="auto"
+        )
+
+        messages.append(response.choices[0].message)
+        if (
+            not response
+            or not response.choices
+            or not response.choices[0].message.tool_calls
+        ):
+            logging.error(
+                "No response or no tool calls in the response from Mistral API"
+            )
+            return None
+        print("messages: ", messages)
+
+        tool_call = response.choices[0].message.tool_calls[0]
+
+        function_name = tool_call.function.name
+        function_params = json.loads(tool_call.function.arguments)
+        print(
+            "\nfunction_name: ", function_name, "\nfunction_params: ", function_params
+        )
+
+        function_result = await FUNCTION_LIST["get_institution"](**function_params)
+
+        if isinstance(function_result, (list, dict)):
+            function_result = json.dumps(function_result)
+        print
+        messages.append(
+            ChatMessage(role="tool", name=function_name, content=function_result)
+        )
+
+        response = client.chat(model=MODEL_NAME, messages=messages)
+
     except Exception as e:
         logging.error(f"Error querying Mistral API: {e}")
         return None
 
-
-# Save the answer as JSON file
-def save_answer(answer, filename):
-    with open(filename, "w") as f:
-        json.dump(answer, f, indent=4)
+    return response.choices[0].message.content
 
 
-if __name__:
-    result = query_mistral_api(prompt=INSTRUCTION)
-    if result:
-        print(json.dumps(result, indent=4))
-        save_answer(result, f"{today_date}_query_result.json")
-    else:
-        print("Failed to get data from Mistral API.")
+async def main():
+    logging.basicConfig(level=logging.INFO)
+    response = await query_mistral_api()
+    if response:
+        print(response)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

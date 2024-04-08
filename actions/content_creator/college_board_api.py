@@ -5,6 +5,7 @@ import httpx
 import os
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
+import json
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -22,19 +23,26 @@ BASE_URL = "http://api.data.gov/ed/collegescorecard/v1/schools"
 COLLEGE_API_KEY = "UaCGXU28T1tPDng2fjBcj1yaCQTaJtRZbv2sUtDC"
 
 
-# router = APIRouter(prefix="/api/v1", tags=["content creator"])
+router = APIRouter(prefix="/api/v1", tags=["content creator"])
 
 
 def fetch_school_data(data: dict) -> List[Dict]:
-    return data.get("results", [])
+    results = data.get("results", [])
+    school_data_list = []
 
+    for item in results:
+        school_data = item.get("school")
+        if school_data:
+            school_data_list.append(school_data)
 
-app = FastAPI()
+    return school_data_list
 
-
-@app.get("/retrieve_answer_from_college_board", response_model=List[Dict])
+@router.get("/retrieve_answer_from_college_board", response_model=List[Dict])
 async def get_institution(
-    name: str = Query(None, description="The name of the school to search for"),
+    state: Optional[str] = Query(None, description="State of the school"),
+    city: Optional[str] = Query(None, description="City of the school"),
+    zip: Optional[str] = Query(None, description="Postal code of the school"),
+    name: Optional[str] = Query(None, description="Name of the school")
 ):
     """Retrive all information about all high educational institions from the College Scorecard API.
 
@@ -43,7 +51,13 @@ async def get_institution(
     """
 
     # Construct the query parameters
-    params = {"api_key": COLLEGE_API_KEY, "school.name": name}
+    params = {"api_key": COLLEGE_API_KEY}
+    if state:
+        params["school.state"] = state
+    if city:
+        params["school.city"] = city
+    if zip:
+        params["school.zip"] = zip
     if name:
         params["school.name"] = name
 
@@ -61,11 +75,6 @@ async def get_institution(
 
         if not schools:
             raise HTTPException(status_code=404, detail="School not found")
-
+        
         return schools
 
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run("college_board_api:app", host="0.0.0.0", port=8082, reload=True)
